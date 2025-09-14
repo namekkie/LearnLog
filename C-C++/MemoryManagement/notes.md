@@ -40,14 +40,14 @@ free(p);
 ## 3. C++ のメモリ管理
 ### 3.1 スタック変数
 - 自動的にスコープ終了時に解放される
-```c++
+```cpp
 Foo foo; // ctor/dtor 自動呼び出し
 ```
 ### 3.2 ヒープ変数
 - `new`/`delete` を組み合わせる必要がある
 - 初期化やエラー処理は自分で行う
 - 配列を確保するときは `new[]` / `delete[]` を使う。
-```c++
+```cpp
 Foo* p = new(std::nothrow) Foo();
 if (p == nullptr) {
     std::cerr << "メモリ確保に失敗しました" << std::endl;
@@ -61,14 +61,15 @@ delete[] arr;             // 配列解放
 ```
 
 ### 3.3 スマートポインタ
+#### 3.3.1 shared_ptr
 - ヒープ領域に確保したメモリを自動的に解放するクラス
-```c++
+```cpp
 std::shared_ptr<Foo> sp = std::make_shared<Foo>();
 ```
-#### 3.3.1 参照カウンタ
+#### 3.3.2 参照カウンタ
 ##### 参照カウンタが増えるとき
 1. 新しい shared_ptr が同じオブジェクトを所有するとき
-   ```c++
+   ```cpp
     auto sp1 = std::make_shared<int>(42);
     auto sp2 = sp1;  // 参照カウント +1
 
@@ -76,7 +77,7 @@ std::shared_ptr<Foo> sp = std::make_shared<Foo>();
    ```
 
 2. 関数に値渡しされたとき
-   ```c++
+   ```cpp
    void foo(std::shared_ptr<int> p) {
        // use_count() == 2
        std::cout << p.use_count() << std::endl;
@@ -86,42 +87,54 @@ std::shared_ptr<Foo> sp = std::make_shared<Foo>();
    ```
 
 3. 関数の戻り値で返されたとき
-   ```c++
+   ```cpp
    std::shared_ptr<int> makePtr() {
        return std::make_shared<int>(99); // 呼び出し元に所有権が移る
    }
    auto sp = makePtr(); // use_count == 1
    ```
 
+4. コンテナに格納したとき
+   ```cpp
+    auto sp1 = std::make_shared<int>(42);
+    std::vector<std::shared_ptr<Foo>> v;
+    v.push_back(sp1);  // コピーされるので +1
+   ```
+
 ##### 参照カウンタが減るとき
 1. shared_ptr がスコープを抜けたとき
-   ```c++
+   ```cpp
    {
        auto sp = std::make_shared<int>(42);
    } // スコープ終了 → use_count -1
    ```
 
 2. 代入で別のポインタを持つようになったとき
-   ```c++
+   ```cpp
    auto sp1 = std::make_shared<int>(42);
    auto sp2 = std::make_shared<int>(100);
    sp1 = sp2; // sp1 が 42 を解放、100 を共有 (カウント増減)
    ```
 
 3. 明示的にリセットしたとき
-   ```c++
-   auto sp = std::make_shared<int>(42);
-   sp.reset(); // use_count -1 → 0 なら解放
-   ```
+    ```cpp
+    auto sp = std::make_shared<int>(42);
+    sp.reset(); // use_count -1 → 0 なら解放
+    ```
+
+4. コンテナから削除されたとき
+    ```cpp
+    v.pop_back();  // その要素の shared_ptr が
+    ```
 
 ### 3.4 配列や複数オブジェクトの管理
 #### 3.4.1 shared_ptr<vector<Foo>>
-```c++
-auto spVec = std::make_shared<std::vector<Foo>>(10);
+```cpp
+std::shared_ptr<std::vector<Foo>> spVec = std::make_shared<std::vector<Foo>>(10);
 ```
 
 #### 3.4.2 vector<shared_ptr<Foo>>
-```c++
+```cpp
 std::vector<std::shared_ptr<Foo>> vec;
 for(int i=0;i<10;i++)
     vec.push_back(std::make_shared<Foo>());
