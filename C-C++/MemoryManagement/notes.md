@@ -14,7 +14,7 @@
 - **スタック領域**：ローカル変数（自動変数）や呼び出し関数の戻り値、引数が置かれる。自動管理のためスコープ終了時に自動的に解放される。
 
 ## 2. C のメモリ管理
-### 2.1 スタック変数
+### 2.1 スタック領域
 - 自動的にスコープ終了時に解放される
 ```c
 int func(int a int* b){
@@ -25,7 +25,7 @@ int func(int a int* b){
 }
 ```
 
-### 2.2 ヒープ変数
+### 2.2 ヒープ領域
 - `malloc`/`free` を組み合わせる必要がある
 - 初期化やエラー処理は自分で行う
 ```c
@@ -38,12 +38,12 @@ free(p);
 ```
 
 ## 3. C++ のメモリ管理
-### 3.1 スタック変数
+### 3.1 スタック領域
 - 自動的にスコープ終了時に解放される
 ```cpp
 Foo foo; // ctor/dtor 自動呼び出し
 ```
-### 3.2 ヒープ変数
+### 3.2 ヒープ領域
 - `new`/`delete` を組み合わせる必要がある
 - 初期化やエラー処理は自分で行う
 - 配列を確保するときは `new[]` / `delete[]` を使う。
@@ -60,14 +60,14 @@ Foo* arr = new Foo[10];   // Fooの配列を10個分確保
 delete[] arr;             // 配列解放
 ```
 
-### 3.3 スマートポインタ
-#### 3.3.1 shared_ptr
-- ヒープ領域に確保したメモリを自動的に解放するクラス
-```cpp
-std::shared_ptr<Foo> sp = std::make_shared<Foo>();
-```
-#### 3.3.2 参照カウンタ
-##### 参照カウンタが増えるとき
+#### 3.2.1 スマートポインタ
+- メモリの解放忘れや二重解放などを防ぐために、メモリを自動的に開放するクラス
+- 自動解放には「所有権」という考え方を使う
+- スマートポインタクラス内ではデータのメモリ領域へのポインタと参照カウンタを管理する
+- 参照カウンタが所有権を表し、参照カウンタが0になるとメモリが開放される
+
+##### 3.2.1.1 参照カウンタ
+###### 参照カウンタが増えるタイミング
 1. 新しい shared_ptr が同じオブジェクトを所有するとき
    ```cpp
     auto sp1 = std::make_shared<int>(42);
@@ -101,7 +101,7 @@ std::shared_ptr<Foo> sp = std::make_shared<Foo>();
     v.push_back(sp1);  // コピーされるので +1
    ```
 
-##### 参照カウンタが減るとき
+###### 参照カウンタが減るタイミング
 1. shared_ptr がスコープを抜けたとき
    ```cpp
    {
@@ -126,14 +126,60 @@ std::shared_ptr<Foo> sp = std::make_shared<Foo>();
     ```cpp
     v.pop_back();  // その要素の shared_ptr が
     ```
+##### 3.2.1.2 unique_ptr
+- 所有権を１つしか持つことができないスマートポインタクラス
+- コピーは禁止だがムーブはできる
+```cpp
+void func(){
+// unique_ptr の生成
+std::unique_ptr<Foo> up1 = std::make_unique<Foo>();
 
-### 3.4 配列や複数オブジェクトの管理
-#### 3.4.1 shared_ptr<vector<Foo>>
+// コピーは禁止されている（コンパイルエラー）
+// std::unique_ptr<Foo> up2 = up1;
+
+// ムーブで所有権を移す
+std::unique_ptr<Foo> up2 = std::move(up1);
+
+//所有権を保持しているかの判定
+if (up2) {
+    std::cout << "up2 owns the object\n";
+}
+
+// 生ポインタを取り出す
+Foo* rawPtr = up2.get();
+}
+```
+##### 3.2.1.3 shared_ptr
+- 所有権を複数持つことができるスマートポインタクラス
+- コピーもムーブもできる
+```cpp
+// shared_ptr の生成
+std::shared_ptr<Foo> sp1 = std::make_shared<Foo>(); // sp1の参照カウンタ：1
+
+// コピーが可能（参照カウント増加）
+std::shared_ptr<Foo> sp2 = sp1;　// sp1の参照カウンタ：２
+
+// 別のスコープでさらにコピー
+{
+    std::shared_ptr<Foo> sp3 = sp1; // sp1の参照カウンタ：3
+} // sp3 がスコープを抜けて参照カウント -1
+// sp1の参照カウンタ：2
+
+// 保持している所有権の数を取得
+int count = sp1.use_count();
+
+// 生ポインタを取り出す
+Foo* rawPtr = sp1.get();
+
+```
+
+##### 3.2.1.4 配列や複数オブジェクトの管理
+###### shared_ptr<vector<Foo>>
 ```cpp
 std::shared_ptr<std::vector<Foo>> spVec = std::make_shared<std::vector<Foo>>(10);
 ```
 
-#### 3.4.2 vector<shared_ptr<Foo>>
+###### vector<shared_ptr<Foo>>
 ```cpp
 std::vector<std::shared_ptr<Foo>> vec;
 for(int i=0;i<10;i++)
